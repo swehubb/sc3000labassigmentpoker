@@ -1,0 +1,29 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Part2 - Task 1 (VI + PI)",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/main_part2.py",
+      "console": "integratedTerminal",
+      "args": ["--task", "1"]
+    },
+    {
+      "name": "Part2 - Task 2 (Monte Carlo, 20000 eps)",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/main_part2.py",
+      "console": "integratedTerminal",
+      "args": ["--task", "2", "--episodes", "20000"]
+    },
+    {
+      "name": "Part2 - Task 3 (Q-learning, 20000 eps)",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/main_part2.py",
+      "console": "integratedTerminal",
+      "args": ["--task", "3", "--episodes", "20000"]
+    }
+  ]
+}
