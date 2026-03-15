@@ -1,279 +1,275 @@
 import random
 import math
 
-# ====== Environment spec ======
-N = 5
-START = (0, 0)
-GOAL = (4, 4)
-OBSTACLES = {(2, 1), (2, 3)}
-ACTIONS = ["U", "D", "L", "R"]
-GAMMA = 0.9
 
-P_INTENDED = 0.8
-P_LEFT = 0.1
-P_RIGHT = 0.1
+n = 5
+start = (0, 0)
+goal = (4, 4)
+obstacles = {(2, 1), (2, 3)}
+actions = ["U", "D", "L", "R"]
 
-EPSILON = 0.1
-ALPHA = 0.1
-EPISODES = 20000
-MAX_STEPS_PER_EPISODE = 500
+gamma = 0.9
+epsilon = 0.1
+alpha = 0.1
+episodes = 20000
+max_steps = 500
+
+# stochastic transition probs 
+p_intended = 0.8
+p_side = 0.1  # prob of going left or right of intended
 
 
-# ====== Basic environment helpers ======
+# check if state is within the grid
 def in_bounds(s):
     x, y = s
-    return 0 <= x < N and 0 <= y < N
-
-
-def is_terminal(s):
-    return s == GOAL
+    return 0 <= x < n and 0 <= y < n
 
 
 def is_blocked(s):
-    return s in OBSTACLES
+    return s in obstacles
 
 
-def all_states():
+def is_goal(s):
+    return s == goal
+
+
+def get_all_states():
     states = []
-    for x in range(N):
-        for y in range(N):
-            s = (x, y)
-            if not is_blocked(s):
-                states.append(s)
+    for x in range(n):
+        for y in range(n):
+            if not is_blocked((x, y)):
+                states.append((x, y))
     return states
 
 
-def move_once(s, a):
-    if is_terminal(s):
-        return s
 
+def move(s, a):
+    if is_goal(s):
+        return s
     x, y = s
     if a == "U":
-        ns = (x, y + 1)
+        nx, ny = x, y + 1
     elif a == "D":
-        ns = (x, y - 1)
+        nx, ny = x, y - 1
     elif a == "L":
-        ns = (x - 1, y)
-    else:
-        ns = (x + 1, y)
+        nx, ny = x - 1, y
+    else:  # R
+        nx, ny = x + 1, y
 
+    ns = (nx, ny)
     if not in_bounds(ns) or is_blocked(ns):
         return s
     return ns
 
 
-def step_deterministic(s, a):
-    if is_terminal(s):
-        return s, 0.0, True
+# move and return reward
+def det_step(s, a):
+    if is_goal(s):
+        return s, 0, True
+    ns = move(s, a)
+    if ns == goal:
+        return ns, 10, True
+    return ns, -1, False
 
-    ns = move_once(s, a)
-    if ns == GOAL:
-        return ns, 10.0, True
-    return ns, -1.0, False
 
+# stochastic
+def stoch_step(s, a):
+    if is_goal(s):
+        return s, 0, True
 
-def perpendicular_actions(a):
     if a in ("U", "D"):
-        return ("L", "R")
-    return ("U", "D")
-
-
-def deterministic_transition_model(s, a):
-    ns, r, done = step_deterministic(s, a)
-    return [(1.0, ns, r, done)]
-
-
-def sample_step(s, a):
-    if is_terminal(s):
-        return s, 0.0, True
-
-    left_a, right_a = perpendicular_actions(a)
-    rnd = random.random()
-
-    if rnd < P_INTENDED:
-        actual_a = a
-    elif rnd < P_INTENDED + P_LEFT:
-        actual_a = left_a
+        sides = ("L", "R")
     else:
-        actual_a = right_a
+        sides = ("U", "D")
 
-    return step_deterministic(s, actual_a)
+    r = random.random()
+    if r < p_intended:
+        actual = a
+    elif r < p_intended + p_side:
+        actual = sides[0]
+    else:
+        actual = sides[1]
+
+    return det_step(s, actual)
 
 
-# ====== Printing helpers ======
-def policy_arrow(a):
+def action_char(a):
     if a is None:
-        return "·"
-    return {"U": "↑", "D": "↓", "L": "←", "R": "→"}[a]
+        return "."
+    return a
 
 
-def print_grid_values(V, title):
+def print_values(V, title):
     print(title)
-    for y in reversed(range(N)):
+    for y in reversed(range(n)):
         row = []
-        for x in range(N):
+        for x in range(n):
             s = (x, y)
-            if s in OBSTACLES:
-                row.append("   X    ")
-            elif s == GOAL:
-                row.append("   G    ")
+            if s in obstacles:
+                row.append("   X   ")
+            elif s == goal:
+                row.append("   G   ")
             else:
-                row.append(f"{V.get(s, 0.0):7.2f}")
+                row.append(f"{V.get(s, 0.0):6.2f} ")
         print(" ".join(row))
     print()
 
 
-def print_grid_policy(pi, title):
+def print_policy(pi, title):
     print(title)
-    for y in reversed(range(N)):
+    for y in reversed(range(n)):
         row = []
-        for x in range(N):
+        for x in range(n):
             s = (x, y)
-            if s in OBSTACLES:
+            if s in obstacles:
                 row.append("X")
-            elif s == GOAL:
+            elif s == goal:
                 row.append("G")
             else:
-                row.append(policy_arrow(pi.get(s)))
-        print(" ".join(f"{c:>2}" for c in row))
+                row.append(action_char(pi.get(s)))
+        print("  ".join(row))
     print()
 
 
-def compare_policies(pi1, pi2, name1, name2):
-    diffs = []
-    for s in all_states():
-        if is_terminal(s):
+def compare_policies(pi1, pi2, label1, label2):
+    diff = []
+    for s in get_all_states():
+        if is_goal(s):
             continue
-        a1 = pi1.get(s)
-        a2 = pi2.get(s)
-        if a1 != a2:
-            diffs.append((s, a1, a2))
+        if pi1.get(s) != pi2.get(s):
+            diff.append(s)
 
-    if not diffs:
-        print(f"{name1} and {name2} policies are identical on all non-terminal states.")
+    if not diff:
+        print(f"{label1} and {label2}: same policy")
     else:
-        print(f"{name1} and {name2} policies differ at {len(diffs)} state(s):")
-        for s, a1, a2 in diffs:
-            print(f"  State {s}: {name1}={a1}, {name2}={a2}")
+        print(f"{label1} vs {label2}: differ at {len(diff)} states")
+        for s in diff:
+            print(f"  {s}:  {label1}={pi1.get(s)}  {label2}={pi2.get(s)}")
     print()
 
 
-# ====== Task 1: Value Iteration ======
-def value_iteration(theta=1e-6, max_iters=10000):
-    V = {s: 0.0 for s in all_states()}
-    V[GOAL] = 0.0
+# value iteration
+def value_iteration():
+    V = {}
+    for s in get_all_states():
+        V[s] = 0.0
 
-    for _ in range(max_iters):
-        delta = 0.0
-        for s in all_states():
-            if is_terminal(s):
+    for i in range(10000):
+        delta = 0
+        for s in get_all_states():
+            if is_goal(s):
                 continue
 
             old_v = V[s]
-            best_q = -math.inf
 
-            for a in ACTIONS:
-                q = 0.0
-                for p, ns, r, done in deterministic_transition_model(s, a):
-                    q += p * (r + (0.0 if done else GAMMA * V[ns]))
-                best_q = max(best_q, q)
+            best = -999999
+            for a in actions:
+                ns, r, done = det_step(s, a)
+                if done:
+                    q = r
+                else:
+                    q = r + gamma * V[ns]
+                if q > best:
+                    best = q
 
-            V[s] = best_q
-            delta = max(delta, abs(old_v - V[s]))
+            V[s] = best
+            delta = max(delta, abs(V[s] - old_v))
 
-        if delta < theta:
+        if delta < 1e-6:
             break
 
     pi = {}
-    for s in all_states():
-        if is_terminal(s):
+    for s in get_all_states():
+        if is_goal(s):
             continue
-
-        best_a = ACTIONS[0]
-        best_q = -math.inf
-
-        for a in ACTIONS:
-            q = 0.0
-            for p, ns, r, done in deterministic_transition_model(s, a):
-                q += p * (r + (0.0 if done else GAMMA * V[ns]))
+        best_a = None
+        best_q = -999999
+        for a in actions:
+            ns, r, done = det_step(s, a)
+            if done:
+                q = r
+            else:
+                q = r + gamma * V[ns]
             if q > best_q:
                 best_q = q
                 best_a = a
-
         pi[s] = best_a
 
     return V, pi
 
 
-# ====== Task 1: Policy Iteration ======
-def policy_evaluation(pi, theta=1e-6, max_iters=10000):
-    V = {s: 0.0 for s in all_states()}
-    V[GOAL] = 0.0
+# policy iteration
+def policy_eval(pi):
+    V = {}
+    for s in get_all_states():
+        V[s] = 0.0
 
-    for _ in range(max_iters):
-        delta = 0.0
-        for s in all_states():
-            if is_terminal(s):
+    for _ in range(10000):
+        delta = 0
+        for s in get_all_states():
+            if is_goal(s):
                 continue
-
             old_v = V[s]
             a = pi[s]
-            v = 0.0
-
-            for p, ns, r, done in deterministic_transition_model(s, a):
-                v += p * (r + (0.0 if done else GAMMA * V[ns]))
-
+            ns, r, done = det_step(s, a)
+            if done:
+                v = r
+            else:
+                v = r + gamma * V[ns]
             V[s] = v
-            delta = max(delta, abs(old_v - V[s]))
-
-        if delta < theta:
+            delta = max(delta, abs(V[s] - old_v))
+        if delta < 1e-6:
             break
 
     return V
 
 
 def policy_iteration():
+    # start with U
     pi = {}
-    for s in all_states():
-        if not is_terminal(s):
+    for s in get_all_states():
+        if not is_goal(s):
             pi[s] = "U"
 
     while True:
-        V = policy_evaluation(pi)
-        stable = True
+        V = policy_eval(pi)
 
-        for s in all_states():
-            if is_terminal(s):
+        changed = False
+        for s in get_all_states():
+            if is_goal(s):
                 continue
 
             old_a = pi[s]
-            best_a = old_a
-            best_q = -math.inf
+            best_a = None
+            best_q = -999999
 
-            for a in ACTIONS:
-                q = 0.0
-                for p, ns, r, done in deterministic_transition_model(s, a):
-                    q += p * (r + (0.0 if done else GAMMA * V[ns]))
+            for a in actions:
+                ns, r, done = det_step(s, a)
+                if done:
+                    q = r
+                else:
+                    q = r + gamma * V[ns]
                 if q > best_q:
                     best_q = q
                     best_a = a
 
             pi[s] = best_a
             if best_a != old_a:
-                stable = False
+                changed = True
 
-        if stable:
-            return V, pi
+        if not changed:
+            break
+
+    return V, pi
 
 
-# ====== RL helpers ======
-def epsilon_greedy_action(Q, s, epsilon):
-    if random.random() < epsilon:
-        return random.choice(ACTIONS)
-
-    best_a = ACTIONS[0]
-    best_q = -math.inf
-    for a in ACTIONS:
+# epsilon greedy
+def eps_greedy(Q, s, eps):
+    if random.random() < eps:
+        return random.choice(actions)
+    best_a = actions[0]
+    best_q = Q.get((s, actions[0]), 0.0)
+    for a in actions[1:]:
         q = Q.get((s, a), 0.0)
         if q > best_q:
             best_q = q
@@ -281,132 +277,147 @@ def epsilon_greedy_action(Q, s, epsilon):
     return best_a
 
 
-def greedy_policy_from_Q(Q):
+def extract_policy(Q):
     pi = {}
-    for s in all_states():
-        if is_terminal(s):
+    for s in get_all_states():
+        if is_goal(s):
             continue
-
-        best_a = ACTIONS[0]
-        best_q = -math.inf
-        for a in ACTIONS:
+        best_a = actions[0]
+        best_q = Q.get((s, actions[0]), 0.0)
+        for a in actions[1:]:
             q = Q.get((s, a), 0.0)
             if q > best_q:
                 best_q = q
                 best_a = a
-
         pi[s] = best_a
     return pi
 
 
+# monte carlo 
+def monte_carlo(num_episodes):
+    Q = {}
+    returns = {}  # store all returns seen for each (s,a)
+
+    for ep in range(num_episodes):
+        s = start
+        episode = []
+
+        for _ in range(max_steps):
+            if is_goal(s):
+                break
+            a = eps_greedy(Q, s, epsilon)
+            ns, r, done = stoch_step(s, a)
+            episode.append((s, a, r))
+            s = ns
+            if done:
+                break
+
+        
+        T = len(episode)
+        for t in range(T):
+            st, at, _ = episode[t]
+
+       
+            first_visit = True
+            for j in range(t):
+                if episode[j][0] == st and episode[j][1] == at:
+                    first_visit = False
+                    break
+            if not first_visit:
+                continue
+
+            # discounted 
+            G = 0.0
+            for k in range(t, T):
+                G += (gamma ** (k - t)) * episode[k][2]
+
+            if (st, at) not in returns:
+                returns[(st, at)] = []
+            returns[(st, at)].append(G)
+            Q[(st, at)] = sum(returns[(st, at)]) / len(returns[(st, at)])
+
+    return Q
+
+
+# q learning
+def q_learning(num_episodes):
+    Q = {}
+
+    for ep in range(num_episodes):
+        s = start
+
+        for _ in range(max_steps):
+            if is_goal(s):
+                break
+
+            a = eps_greedy(Q, s, epsilon)
+            ns, r, done = stoch_step(s, a)
+
+            # Q(s,a) = Q(s,a) + alpha * (r + gamma * max Q(s') - Q(s,a))
+            old = Q.get((s, a), 0.0)
+            if done:
+                target = r
+            else:
+                best_next = max(Q.get((ns, na), 0.0) for na in actions)
+                target = r + gamma * best_next
+
+            Q[(s, a)] = old + alpha * (target - old)
+            s = ns
+
+            if done:
+                break
+
+    return Q
+
+
 def V_from_Q(Q):
     V = {}
-    for s in all_states():
-        if is_terminal(s):
+    for s in get_all_states():
+        if is_goal(s):
             V[s] = 0.0
         else:
-            V[s] = max(Q.get((s, a), 0.0) for a in ACTIONS)
+            V[s] = max(Q.get((s, a), 0.0) for a in actions)
     return V
 
 
-# ====== Task 2: Monte Carlo Control ======
-def monte_carlo_control(episodes):
-    Q = {}
-    returns_sum = {}
-    returns_cnt = {}
+random.seed(0)
 
-    for _ in range(episodes):
-        s = START
-        episode = []
+print("Task 1")
+V_vi, pi_vi = value_iteration()
+V_pit, pi_pit = policy_iteration()
 
-        for _ in range(MAX_STEPS_PER_EPISODE):
-            if is_terminal(s):
-                break
+print_values(V_vi, "Value Iteration - state values")
+print_policy(pi_vi, "Value Iteration - policy")
 
-            a = epsilon_greedy_action(Q, s, EPSILON)
-            ns, r, done = sample_step(s, a)
-            episode.append((s, a, r))
-            s = ns
+print_values(V_pit, "Policy Iteration - state values")
+print_policy(pi_pit, "Policy Iteration - policy")
 
-            if done:
-                break
+compare_policies(pi_vi, pi_pit, "Value Iter", "Policy Iter")
 
-        G = 0.0
-        seen = set()
-        for s_t, a_t, r_t in reversed(episode):
-            G = r_t + GAMMA * G
-            if (s_t, a_t) in seen:
-                continue
-            seen.add((s_t, a_t))
+print()
+print("Task 2")
+Q_mc = monte_carlo(episodes)
+pi_mc = extract_policy(Q_mc)
+V_mc = V_from_Q(Q_mc)
 
-            returns_sum[(s_t, a_t)] = returns_sum.get((s_t, a_t), 0.0) + G
-            returns_cnt[(s_t, a_t)] = returns_cnt.get((s_t, a_t), 0) + 1
-            Q[(s_t, a_t)] = returns_sum[(s_t, a_t)] / returns_cnt[(s_t, a_t)]
+print_values(V_mc, "Monte Carlo - state values")
+print_policy(pi_mc, "Monte Carlo - policy")
 
-    pi = greedy_policy_from_Q(Q)
-    return Q, pi
+_, pi_opt = value_iteration()
+compare_policies(pi_mc, pi_opt, "Monte Carlo", "Optimal (VI)")
 
+print()
+print("Task 3")
+Q_ql = q_learning(episodes)
+pi_ql = extract_policy(Q_ql)
+V_ql = V_from_Q(Q_ql)
 
-# ====== Task 3: Q-learning ======
-def q_learning(episodes):
-    Q = {}
+print_values(V_ql, "Q-learning - state values")
+print_policy(pi_ql, "Q-learning - policy")
 
-    for _ in range(episodes):
-        s = START
+random.seed(0)
+Q_mc2 = monte_carlo(episodes)
+pi_mc2 = extract_policy(Q_mc2)
 
-        for _ in range(MAX_STEPS_PER_EPISODE):
-            if is_terminal(s):
-                break
-
-            a = epsilon_greedy_action(Q, s, EPSILON)
-            ns, r, done = sample_step(s, a)
-
-            old_q = Q.get((s, a), 0.0)
-            best_next = 0.0 if done else max(Q.get((ns, na), 0.0) for na in ACTIONS)
-            target = r + GAMMA * best_next
-            Q[(s, a)] = old_q + ALPHA * (target - old_q)
-
-            s = ns
-            if done:
-                break
-
-    pi = greedy_policy_from_Q(Q)
-    return Q, pi
-
-
-def main():
-    random.seed(0)
-
-    print("Task 1")
-    V_vi, pi_vi = value_iteration()
-    V_pi, pi_pi = policy_iteration()
-
-    print_grid_values(V_vi, "Value Iteration: V(s)")
-    print_grid_policy(pi_vi, "Value Iteration: policy")
-    print_grid_values(V_pi, "Policy Iteration: V(s)")
-    print_grid_policy(pi_pi, "Policy Iteration: policy")
-    compare_policies(pi_vi, pi_pi, "Value Iteration", "Policy Iteration")
-
-    print("Task 2")
-    Q_mc, pi_mc = monte_carlo_control(EPISODES)
-    V_mc = V_from_Q(Q_mc)
-    _, pi_opt = value_iteration()
-
-    print_grid_values(V_mc, f"Monte Carlo Control (eps={EPSILON}): V(s)")
-    print_grid_policy(pi_mc, "Monte Carlo Control: policy")
-    compare_policies(pi_mc, pi_opt, "Monte Carlo", "Optimal (VI)")
-
-    print("Task 3")
-    Q_ql, pi_ql = q_learning(EPISODES)
-    V_ql = V_from_Q(Q_ql)
-    _, pi_opt = value_iteration()
-    _, pi_mc = monte_carlo_control(EPISODES)
-
-    print_grid_values(V_ql, f"Q-learning (eps={EPSILON}, alpha={ALPHA}): V(s)")
-    print_grid_policy(pi_ql, "Q-learning: policy")
-    compare_policies(pi_ql, pi_mc, "Q-learning", "Monte Carlo")
-    compare_policies(pi_ql, pi_opt, "Q-learning", "Optimal (VI)")
-
-
-if __name__ == "__main__":
-    main()
+compare_policies(pi_ql, pi_mc2, "Q-learning", "Monte Carlo")
+compare_policies(pi_ql, pi_opt, "Q-learning", "Optimal (VI)")
