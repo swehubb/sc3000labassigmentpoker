@@ -2,6 +2,7 @@ import json
 import heapq
 import math
 
+
 with open("G.json") as f:
     G = json.load(f)
 with open("Dist.json") as f:
@@ -220,24 +221,29 @@ def task3(start, end, budget):
     return path, best_dist, total_energy
 
 
-# run 
+# main function to run all tasks and print results
+def main():
+    print("Task 1")
+    path1, dist1, energy1 = task1(start_node, end_node)
+    print("Shortest path:", "->".join(path1))
+    print("Shortest distance:", dist1)
+    print("Total energy cost:", energy1)
 
-print("Task 1")
-path1, dist1, energy1 = task1(start_node, end_node)
-print("Shortest path:", "->".join(path1))
-print("Shortest distance:", dist1)
-print("Total energy cost:", energy1)
+    print()
+    print("Task 2")
+    path2, dist2, energy2 = task2(start_node, end_node, BUDGET)
+    print("Shortest path:", "->".join(path2))
+    print("Shortest distance:", dist2)
+    print("Total energy cost:", energy2)
 
-print()
-print("Task 2")
-path2, dist2, energy2 = task2(start_node, end_node, BUDGET)
-print("Shortest path:", "->".join(path2))
-print("Shortest distance:", dist2)
-print("Total energy cost:", energy2)
-
-print()
-print("Task 3")
-path3, dist3, energy3 = task3(start_node, end_node, BUDGET)
-print("Shortest path:", "->".join(path3))
-print("Shortest distance:", dist3)
-print("Total energy cost:", energy3)
+    print()
+    print("Task 3")
+    path3, dist3, energy3 = task3(start_node, end_node, BUDGET)
+    print("Shortest path:", "->".join(path3))
+    print("Shortest distance:", dist3)
+    print("Total energy cost:", energy3)
+    
+if __name__ == "__main__":
+    main()
+    
+    
