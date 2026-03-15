@@ -1,7 +1,6 @@
 import random
 import math
 
-
 n = 5
 start = (0, 0)
 goal = (4, 4)
@@ -14,24 +13,18 @@ alpha = 0.1
 episodes = 20000
 max_steps = 500
 
-# stochastic transition probs 
 p_intended = 0.8
-p_side = 0.1  # prob of going left or right of intended
+p_side = 0.1  
 
-
-# check if state is within the grid
 def in_bounds(s):
     x, y = s
     return 0 <= x < n and 0 <= y < n
 
-
 def is_blocked(s):
     return s in obstacles
 
-
 def is_goal(s):
     return s == goal
-
 
 def get_all_states():
     states = []
@@ -40,8 +33,6 @@ def get_all_states():
             if not is_blocked((x, y)):
                 states.append((x, y))
     return states
-
-
 
 def move(s, a):
     if is_goal(s):
@@ -53,7 +44,7 @@ def move(s, a):
         nx, ny = x, y - 1
     elif a == "L":
         nx, ny = x - 1, y
-    else:  # R
+    else:  
         nx, ny = x + 1, y
 
     ns = (nx, ny)
@@ -61,8 +52,6 @@ def move(s, a):
         return s
     return ns
 
-
-# move and return reward
 def det_step(s, a):
     if is_goal(s):
         return s, 0, True
@@ -71,8 +60,6 @@ def det_step(s, a):
         return ns, 10, True
     return ns, -1, False
 
-
-# stochastic
 def stoch_step(s, a):
     if is_goal(s):
         return s, 0, True
@@ -92,12 +79,10 @@ def stoch_step(s, a):
 
     return det_step(s, actual)
 
-
 def action_char(a):
     if a is None:
         return "."
     return a
-
 
 def print_values(V, title):
     print(title)
@@ -114,7 +99,6 @@ def print_values(V, title):
         print(" ".join(row))
     print()
 
-
 def print_policy(pi, title):
     print(title)
     for y in reversed(range(n)):
@@ -129,7 +113,6 @@ def print_policy(pi, title):
                 row.append(action_char(pi.get(s)))
         print("  ".join(row))
     print()
-
 
 def compare_policies(pi1, pi2, label1, label2):
     diff = []
@@ -147,7 +130,6 @@ def compare_policies(pi1, pi2, label1, label2):
             print(f"  {s}:  {label1}={pi1.get(s)}  {label2}={pi2.get(s)}")
     print()
 
-
 # value iteration
 def value_iteration():
     V = {}
@@ -161,8 +143,8 @@ def value_iteration():
                 continue
 
             old_v = V[s]
-
-            best = -999999
+            best = float("-inf") 
+            
             for a in actions:
                 ns, r, done = det_step(s, a)
                 if done:
@@ -173,7 +155,10 @@ def value_iteration():
                     best = q
 
             V[s] = best
-            delta = max(delta, abs(V[s] - old_v))
+            
+            
+            if abs(V[s] - old_v) > delta:
+                delta = abs(V[s] - old_v)
 
         if delta < 1e-6:
             break
@@ -183,7 +168,7 @@ def value_iteration():
         if is_goal(s):
             continue
         best_a = None
-        best_q = -999999
+        best_q = float("-inf")
         for a in actions:
             ns, r, done = det_step(s, a)
             if done:
@@ -196,7 +181,6 @@ def value_iteration():
         pi[s] = best_a
 
     return V, pi
-
 
 # policy iteration
 def policy_eval(pi):
@@ -217,15 +201,16 @@ def policy_eval(pi):
             else:
                 v = r + gamma * V[ns]
             V[s] = v
-            delta = max(delta, abs(V[s] - old_v))
+            
+            if abs(V[s] - old_v) > delta:
+                delta = abs(V[s] - old_v)
+                
         if delta < 1e-6:
             break
 
     return V
 
-
 def policy_iteration():
-    # start with U
     pi = {}
     for s in get_all_states():
         if not is_goal(s):
@@ -233,15 +218,15 @@ def policy_iteration():
 
     while True:
         V = policy_eval(pi)
-
         changed = False
+        
         for s in get_all_states():
             if is_goal(s):
                 continue
 
             old_a = pi[s]
             best_a = None
-            best_q = -999999
+            best_q = float("-inf")
 
             for a in actions:
                 ns, r, done = det_step(s, a)
@@ -262,20 +247,18 @@ def policy_iteration():
 
     return V, pi
 
-
-# epsilon greedy
 def eps_greedy(Q, s, eps):
     if random.random() < eps:
         return random.choice(actions)
+        
     best_a = actions[0]
-    best_q = Q.get((s, actions[0]), 0.0)
-    for a in actions[1:]:
-        q = Q.get((s, a), 0.0)
+    best_q = Q[(s, actions[0])]
+    for a in actions:
+        q = Q[(s, a)]
         if q > best_q:
             best_q = q
             best_a = a
     return best_a
-
 
 def extract_policy(Q):
     pi = {}
@@ -283,20 +266,24 @@ def extract_policy(Q):
         if is_goal(s):
             continue
         best_a = actions[0]
-        best_q = Q.get((s, actions[0]), 0.0)
-        for a in actions[1:]:
-            q = Q.get((s, a), 0.0)
+        best_q = Q[(s, actions[0])]
+        for a in actions:
+            q = Q[(s, a)]
             if q > best_q:
                 best_q = q
                 best_a = a
         pi[s] = best_a
     return pi
 
-
-# monte carlo 
 def monte_carlo(num_episodes):
     Q = {}
-    returns = {}  # store all returns seen for each (s,a)
+    returns = {}  
+    
+ 
+    for s in get_all_states():
+        for a in actions:
+            Q[(s, a)] = 0.0
+            returns[(s, a)] = []
 
     for ep in range(num_episodes):
         s = start
@@ -312,12 +299,10 @@ def monte_carlo(num_episodes):
             if done:
                 break
 
-        
         T = len(episode)
         for t in range(T):
             st, at, _ = episode[t]
 
-       
             first_visit = True
             for j in range(t):
                 if episode[j][0] == st and episode[j][1] == at:
@@ -326,22 +311,30 @@ def monte_carlo(num_episodes):
             if not first_visit:
                 continue
 
-            # discounted 
+            # explicitly looping powers for gamma
             G = 0.0
+            power = 0
             for k in range(t, T):
-                G += (gamma ** (k - t)) * episode[k][2]
+                G += (gamma ** power) * episode[k][2]
+                power += 1
 
-            if (st, at) not in returns:
-                returns[(st, at)] = []
             returns[(st, at)].append(G)
-            Q[(st, at)] = sum(returns[(st, at)]) / len(returns[(st, at)])
+            
+            # calculate average
+            total_sum = 0
+            for value in returns[(st, at)]:
+                total_sum += value
+            Q[(st, at)] = total_sum / len(returns[(st, at)])
 
     return Q
 
-
-# q learning
 def q_learning(num_episodes):
     Q = {}
+    
+    # initialise
+    for s in get_all_states():
+        for a in actions:
+            Q[(s, a)] = 0.0
 
     for ep in range(num_episodes):
         s = start
@@ -353,12 +346,15 @@ def q_learning(num_episodes):
             a = eps_greedy(Q, s, epsilon)
             ns, r, done = stoch_step(s, a)
 
-            # Q(s,a) = Q(s,a) + alpha * (r + gamma * max Q(s') - Q(s,a))
-            old = Q.get((s, a), 0.0)
+            old = Q[(s, a)]
+            
             if done:
                 target = r
             else:
-                best_next = max(Q.get((ns, na), 0.0) for na in actions)
+                best_next = float("-inf")
+                for na in actions:
+                    if Q[(ns, na)] > best_next:
+                        best_next = Q[(ns, na)]
                 target = r + gamma * best_next
 
             Q[(s, a)] = old + alpha * (target - old)
@@ -369,16 +365,18 @@ def q_learning(num_episodes):
 
     return Q
 
-
 def V_from_Q(Q):
     V = {}
     for s in get_all_states():
         if is_goal(s):
             V[s] = 0.0
         else:
-            V[s] = max(Q.get((s, a), 0.0) for a in actions)
+            best_val = float("-inf")
+            for a in actions:
+                if Q[(s, a)] > best_val:
+                    best_val = Q[(s, a)]
+            V[s] = best_val
     return V
-
 
 random.seed(0)
 
