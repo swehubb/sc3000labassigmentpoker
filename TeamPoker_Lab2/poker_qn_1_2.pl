@@ -1,18 +1,15 @@
-% =========================================
-% Exercise 1: The Smart Phone Rivalry
-% =========================================
 
-% Facts
+
+% facts
 competitor(sumsum, appy).
 developed(sumsum, galactica_s3).
 stole(stevey, galactica_s3).
 boss(stevey, appy).
 smart_phone_technology(galactica_s3).
 
-% Rules
+% rule
 rival(X, Y) :-
     competitor(X, Y).
-
 business(X) :-
     smart_phone_technology(X).
 
