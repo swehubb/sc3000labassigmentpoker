@@ -1,5 +1,3 @@
-
-
 % facts
 competitor(sumsum, appy).
 developed(sumsum, galactica_s3).
